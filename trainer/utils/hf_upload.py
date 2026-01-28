@@ -1,3 +1,4 @@
+import time
 import glob
 import json
 import os
@@ -161,21 +162,44 @@ def main():
 
     patch_model_metadata(local_folder, model)
 
+
     print(f"Creating repo {repo_id}...", flush=True)
     api = HfApi()
-    api.create_repo(repo_id=repo_id, token=hf_token, exist_ok=True, private=False)
+    
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            api.create_repo(repo_id=repo_id, token=hf_token, exist_ok=True, private=False)
+            break
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"Error creating repo (attempt {attempt+1}/{max_retries}): {e}. Retrying in 5 seconds...", flush=True)
+                time.sleep(5)
+            else:
+                print(f"Failed to create repo after {max_retries} attempts.", flush=True)
+                raise e
 
     print(f"Uploading contents of {local_folder} to {repo_id}", flush=True)
     if repo_subfolder:
         print(f"Uploading into subfolder: {repo_subfolder}", flush=True)
 
-    api.upload_folder(
-        repo_id=repo_id,
-        folder_path=local_folder,
-        path_in_repo=repo_subfolder if repo_subfolder else None,
-        commit_message=f"Upload task output {task_id}",
-        token=hf_token,
-    )
+    for attempt in range(max_retries):
+        try:
+            api.upload_folder(
+                repo_id=repo_id,
+                folder_path=local_folder,
+                path_in_repo=repo_subfolder if repo_subfolder else None,
+                commit_message=f"Upload task output {task_id}",
+                token=hf_token,
+            )
+            break
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"Error uploading folder (attempt {attempt+1}/{max_retries}): {e}. Retrying in 5 seconds...", flush=True)
+                time.sleep(5)
+            else:
+                print(f"Failed to upload folder after {max_retries} attempts.", flush=True)
+                raise e
 
     print(f"Uploaded successfully to https://huggingface.co/{repo_id}", flush=True)
 
